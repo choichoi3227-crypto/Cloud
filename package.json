@@ -1,7 +1,7 @@
 {
   "type": "module",
   "scripts": {
-    "check": "node --check src/worker.js && node --check src/platform.js && node --check public/app.js",
+    "check": "node --check src/worker.js && node --check src/platform.js && node --check src/github-store.js && node --check public/app.js",
     "test": "node --test tests/*.test.js"
   }
 }
