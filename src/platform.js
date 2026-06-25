@@ -23,3 +23,23 @@ export function audit(actor,action,meta={}){store.audit.push({id:uid('audit'),ac
 export class CloudPressKV { constructor(namespace='default'){this.namespace=namespace} key(k){return `${this.namespace}:${k}`} async put(k,v){store.kv.set(this.key(k),{value:v,updatedAt:new Date().toISOString()});return true} async get(k){return store.kv.get(this.key(k))?.value ?? null} async delete(k){return store.kv.delete(this.key(k))} async list(prefix=''){return [...store.kv.entries()].filter(([k])=>k.startsWith(this.key(prefix))).map(([key,row])=>({key:key.slice(this.namespace.length+1),...row}))}}
 export class CloudPressSQL { constructor(database='default'){this.database=database;if(!store.tables.has(database))store.tables.set(database,new Map())} db(){return store.tables.get(this.database)} execute(sql,params=[]){const q=sql.trim(); const create=q.match(/^create table ([a-z0-9_]+) \((.+)\)$/i); if(create){this.db().set(create[1],[]);return {ok:true,rows:[]}} const insert=q.match(/^insert into ([a-z0-9_]+) \((.+)\) values \((.+)\)$/i); if(insert){const cols=insert[2].split(',').map(x=>x.trim()); const row=Object.fromEntries(cols.map((c,i)=>[c,params[i]])); this.db().get(insert[1])?.push(row); return {ok:true,rows:[row]}} const select=q.match(/^select \* from ([a-z0-9_]+)$/i); if(select)return {ok:true,rows:[...(this.db().get(select[1])||[])]}; return {ok:false,error:'unsupported sql statement'}}}
 export class CP3 { constructor(bucket='default'){this.bucket=bucket} key(k){return `${this.bucket}:${k}`} async put(name,data){const payload=typeof data==='string'?data:JSON.stringify(data); store.objects.set(this.key(name),{name,size:new Blob([payload]).size,sha256:await sha256(payload),payload,createdAt:new Date().toISOString()}); return store.objects.get(this.key(name))} async get(name){return store.objects.get(this.key(name))||null} async list(){return [...store.objects.values()].filter(x=>store.objects.has(this.key(x.name))).map(({payload,...m})=>m)}}
+
+export const serviceNamespaces = Object.freeze({ database: 'cloudpress-service-db', storage: 'cloudpress-service-cp3', sql: 'cloudpress-service-sql' });
+export async function ensureServicePlatform(){
+  const kv = new CloudPressKV(serviceNamespaces.database);
+  const configured = await kv.get('site:config');
+  if(!configured){
+    await kv.put('site:config',{name:'클라우드프레스',database:'CloudPressDB',storage:'CP3',capacity:'unlimited',createdAt:new Date().toISOString()});
+    await kv.put('runtime:domains',{bridge:'bridge.{domain}',console:'bridge-console.{domain}',sso:'sso.{domain}'});
+    const sql = new CloudPressSQL(serviceNamespaces.sql);
+    sql.execute('create table service_events (id,type)');
+    sql.execute('insert into service_events (id,type) values (?,?)',[uid('evt'),'platform.bootstrap']);
+    await new CP3(serviceNamespaces.storage).put('service/README.json',{owner:'cloudpress-service',capacity:'unlimited',purpose:'service-site-assets-and-operational-metadata'});
+  }
+  return {kv, sql:new CloudPressSQL(serviceNamespaces.sql), storage:new CP3(serviceNamespaces.storage)};
+}
+export async function serviceSnapshot(){
+  const platform = await ensureServicePlatform();
+  return {config:await platform.kv.get('site:config'), domains:await platform.kv.get('runtime:domains'), kvItems:await platform.kv.list(), sqlEvents:platform.sql.execute('select * from service_events').rows, storageObjects:await platform.storage.list()};
+}
+export function isAdmin(user){return Boolean(user?.roles?.includes('admin'))}
