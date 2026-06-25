@@ -1,4 +1,4 @@
-import { catalog, store, json, html, sha256, uid, body, sanitizeEmail, publicUser, priceOf, requireUser, audit, CloudPressKV, CloudPressSQL, CP3, ensureServicePlatform, serviceSnapshot, isAdmin, serviceNamespaces } from './platform.js';
+import { catalog, store, json, html, sha256, uid, body, sanitizeEmail, publicUser, priceOf, requireUser, audit, CloudPressKV, CloudPressSQL, CP3, ensureServicePlatform, serviceSnapshot, isAdmin, serviceNamespaces, currentUser } from './platform.js';
 
 const bridgeRoutes = new Set(['/', '/index', '/feature', '/about', '/products', '/notice']);
 const consoleRoutes = new Set(['/dashboard', '/instances', '/instance-detail', '/payments', '/billing', '/accounts', '/admin', '/admin/db', '/admin/storage', '/admin/users', '/admin/orders', '/admin/settings']);
@@ -13,13 +13,14 @@ export default { async fetch(req, env){
   await ensureServicePlatform();
   const url=new URL(req.url); const scope=domainScope(url.hostname, env);
   if(url.pathname.startsWith('/api/')) return api(req,env,url,scope);
-  const page=resolvePage(url, scope); if(page) return html(shell(page));
+  const page=resolvePage(url, scope); if(page){ if(scope==='console' && !(await currentUser(req))) return redirectToSsoLogin(url, env); return html(shell(page)); }
   if(isKnownPagePath(url.pathname)) return notFound(scope, url.pathname);
   return env.ASSETS ? env.ASSETS.fetch(req) : notFound(scope, url.pathname);
 }};
 function domainScope(hostname, env={}){const h=hostname.toLowerCase(); const root=String(env.PRIMARY_DOMAIN||'').toLowerCase(); if(h==='localhost'||h==='127.0.0.1'||h.endsWith('.workers.dev')) return 'dev'; if(h.startsWith('bridge-console.')) return 'console'; if(h.startsWith('sso.')) return 'sso'; if(h.startsWith('bridge.')) return 'bridge'; if(root && h===`bridge-console.${root}`) return 'console'; if(root && h===`sso.${root}`) return 'sso'; if(root && h===`bridge.${root}`) return 'bridge'; return 'unknown'}
 function isKnownPagePath(path){return bridgeRoutes.has(path)||consoleRoutes.has(path)||ssoRoutes.has(path)||path.includes('/cart/')||path.startsWith('/products/')}
 function resolvePage(url,scope){const path=url.pathname; if(scope==='dev'){if(pageMap[path]) return pageMap[path]; if(path.includes('/cart/')) return path; if(path.startsWith('/products/')) return '/bridge/products.html'; return null} if(scope==='bridge'){if(bridgeRoutes.has(path)) return pageMap[path]; if(path.includes('/cart/')||path.startsWith('/products/')) return path; return null} if(scope==='console'&&consoleRoutes.has(path)) return pageMap[path]; if(scope==='sso'&&ssoRoutes.has(path)) return pageMap[path]; return null}
+function redirectToSsoLogin(url, env={}){const root=String(env.PRIMARY_DOMAIN||'').toLowerCase(); const loginHost=root?`sso.${root}`:url.hostname.replace(/^bridge-console\./,'sso.'); return new Response(null,{status:302,headers:{location:`${url.protocol}//${loginHost}/login?next=${encodeURIComponent(url.pathname)}`}})}
 function notFound(scope,path){return html(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>404 - 클라우드프레스</title><link rel="stylesheet" href="/app.css"></head><body><section class="hero"><h1>404</h1><p>이 페이지는 현재 서브도메인(${scope})에서 사용할 수 없습니다: ${path}</p><a class="btn primary" href="/index">bridge 홈</a></section></body></html>`,404)}
 async function api(req,env,url,scope){
   if(url.pathname==='/api/health') return json({ok:true, service:'cloudpress', scope, targetAvailability:'99.99%', durableObjects:false, time:new Date().toISOString()});
