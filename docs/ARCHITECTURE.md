@@ -8,10 +8,6 @@ CloudPress is implemented as a Cloudflare Worker application without Durable Obj
 - `bridge-console.{domain}`: `/dashboard`, `/instances`, `/instance-detail`, `/payments`, `/billing`, `/accounts`, `/admin`.
 - `sso.{domain}`: `/login`, `/signup`, `/lost-password`.
 
-## Domain isolation
-
-The Worker detects the request host and assigns one scope: `bridge`, `console`, `sso`, `dev`, or `unknown`. Page routes are only rendered in their correct scope. For example, `/dashboard` returns 404 on `bridge.{domain}` and `sso.{domain}` and only renders on `bridge-console.{domain}`. SSO pages only render on `sso.{domain}`. Landing and cart/product pages only render on `bridge.{domain}`.
-
 ## Backend priorities
 
 1. Backend: `src/worker.js` exposes auth, catalog, orders, instances, CloudPressDB KV/SQL, CP3 objects, admin, and health endpoints.
@@ -32,7 +28,6 @@ The Worker detects the request host and assigns one scope: `bridge`, `console`, 
 - Sessions use `HttpOnly`, `Secure`, `SameSite=Lax` cookies.
 - Admin APIs require an authenticated user with the `admin` role.
 - `/api/health` exposes a health endpoint suitable for uptime monitoring.
-- `/api/routes` documents allowed page routes per subdomain and is used by tests to keep domain boundaries explicit.
 - The Worker remains stateless at the routing tier, supporting Cloudflare multi-region execution and a 99.99% availability target.
 
 ## Required production secrets

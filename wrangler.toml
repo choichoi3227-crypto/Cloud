@@ -5,10 +5,8 @@ workers_dev = true
 
 [vars]
 APP_NAME = "클라우드프레스"
-PRIMARY_DOMAIN = "example.com"
+PRIMARY_DOMAIN = "cloud-press.co.kr"
 SESSION_TTL_SECONDS = "86400"
-# COOKIE_DOMAIN should be set to .your-root-domain in production so sso sessions work across bridge and console.
-COOKIE_DOMAIN = ""
 
 # Set with wrangler secret put: JWT_SECRET, ADMIN_BOOTSTRAP_EMAIL,
 # GOOGLE_CLIENT_ID, KAKAO_REST_API_KEY, NAVER_CLIENT_ID, FIREBASE_API_KEY,
